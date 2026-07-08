@@ -10,6 +10,7 @@ import worker from '../worker/workerInstance';
 import { getCompletionArgs } from '../../autoComplete';
 import { IObjectCompletion } from '../../type';
 import { getContextualSuggestions } from '../../autoComplete/contextual';
+import { getKeywordFallbackCompletions, withParserCompletionTimeout } from '../../autoComplete/parserFallback';
 
 class MonacoAutoComplete implements monaco.languages.CompletionItemProvider {
     triggerCharacters?: string[] | undefined = ['.'];
@@ -36,7 +37,6 @@ class MonacoAutoComplete implements monaco.languages.CompletionItemProvider {
             const result = await getter();
             return result === undefined ? fallback : result;
         } catch (e) {
-            console.warn('[monaco-plugin-ob] autocomplete source failed', e);
             return fallback;
         }
     }
@@ -195,7 +195,10 @@ class MonacoAutoComplete implements monaco.languages.CompletionItemProvider {
             }
         }
         const parser = worker.parser;
-        const result: AutoCompletionItems = await parser.getAutoCompletion(input, delimiter, offset)
+        const result: AutoCompletionItems = await withParserCompletionTimeout(
+            parser.getAutoCompletion(input, delimiter, offset),
+            () => getKeywordFallbackCompletions(input, offset, keywords),
+        )
         if (result) {
             let modelOptions = this.getModelOptions(model.id);
             let suggestions: monaco.languages.CompletionItem[] = [];
